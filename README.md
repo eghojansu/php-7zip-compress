@@ -20,7 +20,9 @@ Default options:
     "dir": "{cwd}",
     "dest": "{cwd}/var",
     "bin": null,
-    "options": "-t7z -mx=9 -m0=lzma2",
+    "options": "-mx=9 -m0=lzma2",
+    "format": "7z",
+    "extension": null,
     "excludes": [
         ".git",
         ".vs",

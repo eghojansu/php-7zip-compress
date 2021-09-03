@@ -11,7 +11,9 @@ $defaults = array(
     'dir' => $argv[1] ?? null,
     'dest' => $cwd . '/dist',
     'bin' => null,
-    'options' => '-t7z -mx=9 -m0=lzma2',
+    'format' => '7z',
+    'extension' => null,
+    'options' => '-mx=9 -m0=lzma2',
     'excludes' => array(
         '.git',
         '.vs',
@@ -57,7 +59,8 @@ foreach ($directoriesFix as $key) {
 }
 
 $dest = $options['dest'];
-$name = $options['name'] ?? basename($workingDir);
+$name = $options['name'] ?: basename($workingDir);
+$extension = '.' . ltrim($options['extension'] ?: $options['format'], '.');
 $excludes = array();
 
 foreach ($options['excludes'] as $exclude) {
@@ -86,12 +89,14 @@ if (!$bin) {
     halt('7Zip binary not found');
 }
 
-if (!is_dir($dest)) {
+if (is_dir($dest)) {
+    $dest = realpath($dest);
+} else {
     mkdir($dest, 0777, true);
 }
 
-$target = resolveFilename($dest, $name);
-$cmd = sprintf('"%s" a %s "%s" "%s"', $bin, $options['options'], $target, $workingDir) . ' ' . implode(' ', $excludes);
+$target = resolveFilename($dest, $name, $extension);
+$cmd = sprintf('"%s" a -t%s %s "%s" "%s"', $bin, $options['format'], $options['options'], $target, $workingDir) . ' ' . implode(' ', $excludes);
 
 runCall('Compressing', $result, $cmd);
 writeln('Output file: %s (%s)', $target, resolveFilesize(filesize($target)));
@@ -137,16 +142,26 @@ function writeln(string $format = null, ...$values): void {
 
     echo PHP_EOL;
 }
-function resolveFilename(string $dest, string $name): string {
-    $ctr = 1;
-    $suffix = '';
-    $ext = '.7z';
+function grabFileno(string $file, string $extension): int {
+    $base = basename($file, $extension);
 
-    while (is_file($path = $dest . '/' . $name . $suffix . $ext)) {
-        $suffix = '-' . (++$ctr);
+    if (
+        false === ($hypenPos = strrpos($base, '-'))
+        || !is_numeric($no = substr($base, $hypenPos + 1))
+    ) {
+        return 0;
     }
 
-    return $path;
+    return intval($no);
+}
+function resolveFilename(string $dest, string $name, string $ext): string {
+    $existing = array_map(function ($file) use ($ext) {
+        return grabFileno($file, $ext);
+    }, glob($dest . '/*' . $ext));
+
+    sort($existing);
+
+    return $dest . '/' . $name . ($existing ? '-' . (end($existing) + 1) : '') . $ext;
 }
 function resolveFilesize(float $bytes, int $decimals = 2): string {
     $sizes = 'BKMGTP';
