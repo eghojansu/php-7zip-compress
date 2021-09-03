@@ -1,0 +1,16 @@
+{
+  "name": "eghojansu/php-7zip-compress",
+  "description": "Compress project with PHP and 7zip",
+  "keywords": ["php", "php8", "7zip", "7z", "compress"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Eko Kurniawan",
+      "email": "setiawanegho@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.0.0"
+  },
+  "bin": "bin/compress"
+}
