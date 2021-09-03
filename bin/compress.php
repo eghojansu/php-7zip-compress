@@ -12,8 +12,16 @@ $defaults = array(
     'dest' => $cwd . '/var',
     'bin' => null,
     'options' => '-t7z -mx=9 -m0=lzma2',
-    'excludes' => array('vendor', 'var', 'node_modules'),
-    'ignores' => array('/.*\.(?:7z|bak|db|env|gz|zip|rar)$/i', '/\.git\/.*/i'),
+    'excludes' => array(
+        '.git',
+        '.vs',
+        '~$*',
+        'build',
+        'node_modules',
+        'var',
+        'vendor',
+    ),
+    'exclude_extensions' => '7z,bak,db,env,gz,zip,rar',
 );
 $options = $defaults;
 
@@ -44,42 +52,28 @@ foreach ($directoriesFix as $key) {
     $options[$key] = str_replace('{cwd}', $workingDir, rtrim(fixSlashes($options[$key]), '/'));
 }
 
-$excludes = $options['excludes'] ? '~^' . preg_quote($workingDir, '~') . '/(?:' . array_reduce(split($options['excludes']), function ($excludes, $exclude) {
-    return $excludes . ($excludes ? '|' : '') . preg_quote($exclude, '~');
-}, '') . ')/~i' : '';
+$dest = $options['dest'];
+$name = $options['name'] ?? basename($workingDir);
+$excludes = array();
 
-runCall('Listing git files', $output, 'git ls-files', $workingDir);
-
-if ($output) {
-    $files = array_map(function ($file) use ($workingDir) {
-        return $workingDir . '/' . $file;
-    }, explode("\n", trim($output)));
-} else {
-    $files = null;
-
-    runAction('Using directory iterator', function() use ($workingDir, $excludes, &$files) {
-        $flags = FilesystemIterator::CURRENT_AS_PATHNAME|FilesystemIterator::SKIP_DOTS|FilesystemIterator::UNIX_PATHS;
-        $dir = new RecursiveDirectoryIterator($workingDir, $flags);
-        $it = new RecursiveIteratorIterator($dir);
-
-        $files = iterator_to_array($it, false);
-
-        return 'done';
-    });
+foreach ($options['excludes'] as $exclude) {
+    $excludes[] = sprintf('"-xr!%s/%s"', $name, $exclude);
 }
 
-if ($excludes) {
-    $files = preg_grep($excludes, $files, PREG_GREP_INVERT);
+foreach (split($options['exclude_extensions']) as $ext) {
+    $excludes[] = sprintf('"-xr!%s/*.%s"', $name, $ext);
 }
 
-if ($options['ignores']) {
-    $files = array_reduce($options['ignores'], function ($carry, $pattern) use ($files) {
-        return array_merge($carry, preg_grep($pattern, $files, PREG_GREP_INVERT));
-    }, array());
-}
+runCall('Get excluded files from repository', $result, 'git ls-files -oi --exclude-standard', $workingDir);
 
-if (!$files) {
-    halt('No files');
+foreach (explode("\n", trim($result)) as $exclude) {
+    $base = strstr($exclude, '/', true);
+
+    if (in_array($base, $options['excludes'])) {
+        continue;
+    }
+
+    $excludes[] = sprintf('"-xr!%s/%s"', $name, $exclude);
 }
 
 $bin = resolveBinary($options['bin']);
@@ -88,50 +82,14 @@ if (!$bin) {
     halt('7Zip binary not found');
 }
 
-$name = $options['name'] ?? basename($workingDir);
-$dest = $options['dest'];
-
 if (!is_dir($dest)) {
     mkdir($dest, 0777, true);
 }
 
-$filesCount = count($files);
 $target = resolveFilename($dest, $name);
-$errors = null;
+$cmd = sprintf('"%s" a %s "%s" "%s"', $bin, $options['options'], $target, $workingDir) . ' ' . implode(' ', $excludes);
 
-runAction('Processing '. $filesCount . ' files', function () use ($workingDir, $target, $bin, $files, $options, &$errors) {
-    $success = 0;
-    $error = 0;
-    $cwd = dirname($workingDir);
-    $cut = strlen($cwd) + 1;
-
-    foreach ($files as $file) {
-        $relative = substr($file, $cut);
-        $cmd = sprintf('"%s" a %s "%s" "%s"', $bin, $options['options'], $target, $relative);
-        $result = call($cmd, $cwd);
-
-        if ($result['error']) {
-            $error++;
-
-            $errors[] = $result['error'];
-        } else {
-            $success++;
-        }
-    }
-
-    return sprintf('done (%s files added, %s errors)', $success, $error);
-});
-
-if ($errors) {
-    $errorsCount = count($errors);
-
-    array_map('printf', $errors);
-
-    if ($errorsCount === $filesCount) {
-        writeln('Files/errors: %s/%s', count($files), count($errors));
-    }
-}
-
+runCall('Compressing', $result, $cmd);
 writeln('Output file: %s (%s)', $target, resolveFilesize(filesize($target)));
 writeln();
 
@@ -145,7 +103,11 @@ function runCall(string $action, &$result = null, ...$calls): void {
         'ellapsed' => $ellapsed,
     ) = call(...$calls);
 
-    printf("%s (ellapsed: %s)%s", $error ? 'failed' : 'done', $ellapsed, PHP_EOL);
+    if ($error) {
+        printf('failed: %s (%s)%s', $error, $ellapsed, PHP_EOL);
+    } else {
+        printf('done (%s)%s', $ellapsed, PHP_EOL);
+    }
 }
 function runAction(string $action, Closure $cb): void {
     $start = hrtime(true);
@@ -202,7 +164,7 @@ function resolveBinary(string $path = null): ?string {
 function fixSlashes(string $path): string {
     return strtr($path, '\\', '/');
 }
-function split($parts, $pattern = '/,/'): array {
+function split($parts, $pattern = '/[,;|]/'): array {
     return is_array($parts) ? $parts : preg_split($pattern, $parts, 0, PREG_SPLIT_NO_EMPTY);
 }
 function call($command, string $cwd = null): array {
