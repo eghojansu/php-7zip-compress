@@ -9,14 +9,14 @@ $configs = array('compress.json', 'compress.json.dist');
 $defaults = array(
     'name' => null,
     'dir' => $argv[1] ?? null,
-    'dest' => $cwd . '/var',
+    'dest' => $cwd . '/dist',
     'bin' => null,
     'options' => '-t7z -mx=9 -m0=lzma2',
     'excludes' => array(
         '.git',
         '.vs',
         '~$*',
-        'build',
+        'dist',
         'node_modules',
         'var',
         'vendor',

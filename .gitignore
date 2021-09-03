@@ -1,2 +1,3 @@
 compress.json.dist
-/var
+/var/
+/dist/
