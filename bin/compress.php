@@ -8,7 +8,7 @@ $cwd = getcwd();
 $configs = array('compress.json', 'compress.json.dist');
 $defaults = array(
     'name' => null,
-    'dir' => $argv[1] ?? $cwd,
+    'dir' => $argv[1] ?? null,
     'dest' => $cwd . '/var',
     'bin' => null,
     'options' => '-t7z -mx=9 -m0=lzma2',
@@ -39,11 +39,15 @@ foreach ($configs as $config) {
     }
 }
 
-// fixing
-$workingDir = rtrim(fixSlashes($options['dir']), '/');
+if (!$options['dir'] || '/' === $options['dir']) {
+    halt('Please provide any directory to compress');
+}
 
-if (!realpath($workingDir)) {
-    halt('Unknown working dir: %s', $workingDir);
+// fixing
+$workingDir = fixSlashes(realpath($options['dir']) ?: '');
+
+if (!$workingDir) {
+    halt('Invalid working dir: %s', $workingDir);
 }
 
 $directoriesFix = array('dest');
@@ -69,7 +73,7 @@ runCall('Get excluded files from repository', $result, 'git ls-files -oi --exclu
 foreach (explode("\n", trim($result)) as $exclude) {
     $base = strstr($exclude, '/', true);
 
-    if (in_array($base, $options['excludes'])) {
+    if (!$base || in_array($base, $options['excludes'])) {
         continue;
     }
 
@@ -104,7 +108,7 @@ function runCall(string $action, &$result = null, ...$calls): void {
     ) = call(...$calls);
 
     if ($error) {
-        printf('failed: %s (%s)%s', $error, $ellapsed, PHP_EOL);
+        printf('failed (%s) [%s] %s', $ellapsed, trim($error), PHP_EOL);
     } else {
         printf('done (%s)%s', $ellapsed, PHP_EOL);
     }
