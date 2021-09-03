@@ -61,7 +61,7 @@ $name = $options['name'] ?? basename($workingDir);
 $excludes = array();
 
 foreach ($options['excludes'] as $exclude) {
-    $excludes[] = sprintf('"-xr!%s/%s"', $name, $exclude);
+    $excludes[] = sprintf('"-x!%s/%s"', $name, $exclude);
 }
 
 foreach (split($options['exclude_extensions']) as $ext) {
@@ -119,7 +119,7 @@ function runAction(string $action, Closure $cb): void {
     printf('%s...', ucfirst($action));
 
     $result = $cb();
-    $ellapsed = sprintf("%d ms", (hrtime(true) - $start) / 1e+6);
+    $ellapsed = resolveEllapsed(hrtime(true) - $start);
 
     printf("%s (ellapsed: %s)%s", $result, $ellapsed, PHP_EOL);
 }
@@ -148,11 +148,22 @@ function resolveFilename(string $dest, string $name): string {
 
     return $path;
 }
-function resolveFilesize($bytes, int $decimals = 2): string {
+function resolveFilesize(float $bytes, int $decimals = 2): string {
     $sizes = 'BKMGTP';
     $factor = floor((strlen($bytes) - 1) / 3);
 
-    return sprintf("%.{$decimals}f", $bytes / pow(1024, $factor)) . ($sizes[$factor] ?? 'X');
+    return sprintf("%.{$decimals}f %s", $bytes / pow(1024, $factor), $sizes[$factor] ?? 'X');
+}
+function resolveEllapsed(float $nano, int $decimals = 2): string {
+    if ($nano > 6e10) {
+        return sprintf("%.{$decimals}f minutes", $nano / 6e10);
+    }
+
+    if ($nano > 1e9) {
+        return sprintf("%.{$decimals}f seconds", $nano / 1e9);
+    }
+
+    return sprintf("%.{$decimals}f milliseconds", $nano / 1e6);
 }
 function resolveBinary(string $path = null): ?string {
     if ($path) {
@@ -174,28 +185,28 @@ function split($parts, $pattern = '/[,;|]/'): array {
 function call($command, string $cwd = null): array {
     $start = hrtime(true);
     $result = array(
-        'input' => '',
         'output' => '',
-        'error' => 'Unexpected error',
+        'error' => '',
     );
-    $blueprint = array('input', 'output', 'error');
     $spec = array(
-        array('pipe', 'r'),
-        array('pipe', 'w'),
-        array('pipe', 'w'),
+        1 => array('pipe', 'w'),
+        2 => array('pipe', 'w'),
     );
     $process = proc_open($command, $spec, $pipes, $cwd);
 
     if (is_resource($process)) {
-        foreach ($blueprint as $pos => $part) {
-            $result[$part] = stream_get_contents($pipes[$pos]);
-            fclose($pipes[$pos]);
-        }
+        $result['output'] = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+
+        $result['error'] = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
 
         proc_close($process);
+    } else {
+        $result['error'] = 'Unexpected error';
     }
 
-    $result['ellapsed'] = sprintf("%d ms", (hrtime(true) - $start) / 1e+6);
+    $result['ellapsed'] = resolveEllapsed(hrtime(true) - $start);
 
     return $result;
 }

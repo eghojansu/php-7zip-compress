@@ -1,11 +1,11 @@
-# PHP 7zip Compress Tool
+# PHP Compress Tool
 
-Compress with [PHP][1] and [7zip][2]
+Compress project folder
 
 ## Usage
 
-```php
-php bin/compress.php [path to compress]
+```
+php bin/compress [path to compress]
 ```
 
 ## Options
@@ -34,7 +34,6 @@ Default options:
 }
 ```
 
----
+## Supported compressor
 
-[1]: https://php.net/ (7-zip)
-[2]: https://www.7-zip.org/ (7-zip)
+* [7zip](https://www.7-zip.org/)

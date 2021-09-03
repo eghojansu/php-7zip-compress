@@ -1,5 +1,5 @@
 {
-  "name": "eghojansu/php-7zip-compress",
+  "name": "eghojansu/project-compress",
   "description": "Compress project with PHP and 7zip",
   "keywords": ["php", "php8", "7zip", "7z", "compress"],
   "license": "MIT",
