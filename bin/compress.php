@@ -90,7 +90,7 @@ if (!$bin) {
 }
 
 if (is_dir($dest)) {
-    $dest = realpath($dest);
+    $dest = fixSlashes(realpath($dest));
 } else {
     mkdir($dest, 0777, true);
 }
