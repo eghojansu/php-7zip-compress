@@ -149,7 +149,7 @@ function grabFileno(string $file, string $extension): int {
         false === ($hypenPos = strrpos($base, '-'))
         || !is_numeric($no = substr($base, $hypenPos + 1))
     ) {
-        return 0;
+        return 1;
     }
 
     return intval($no);
@@ -158,11 +158,10 @@ function resolveFilename(string $dest, string $name, string $ext): string {
     $existing = array_map(function ($file) use ($ext) {
         return grabFileno($file, $ext);
     }, glob($dest . '/*' . $ext));
-    $fixExisting = array_filter($existing);
 
-    sort($fixExisting);
+    sort($existing);
 
-    return $dest . '/' . $name . ($existing ? '-' . ((end($fixExisting) ?: 1) + 1) : '') . $ext;
+    return $dest . '/' . $name . ($existing ? '-' . (end($existing) + 1) : '') . $ext;
 }
 function resolveFilesize(float $bytes, int $decimals = 2): string {
     $sizes = 'BKMGTP';
