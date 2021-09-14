@@ -158,10 +158,11 @@ function resolveFilename(string $dest, string $name, string $ext): string {
     $existing = array_map(function ($file) use ($ext) {
         return grabFileno($file, $ext);
     }, glob($dest . '/*' . $ext));
+    $fixExisting = array_filter($existing);
 
-    sort($existing);
+    sort($fixExisting);
 
-    return $dest . '/' . $name . ($existing ? '-' . (end($existing) + 1) : '') . $ext;
+    return $dest . '/' . $name . ($existing ? '-' . ((end($fixExisting) ?: 1) + 1) : '') . $ext;
 }
 function resolveFilesize(float $bytes, int $decimals = 2): string {
     $sizes = 'BKMGTP';
