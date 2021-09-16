@@ -21,10 +21,10 @@ Default options:
     "dir": "{cwd}",
     "exclude_extensions": ["7z", "bak", "db", "env", "gz", "zip", "rar"],
     "exclude_recursives": ["~$*"],
+    "exclude_extras": null,
     "excludes": [".git", ".vs", "dist", "node_modules", "var", "vendor"],
     "extension": null,
     "format": "7z",
-    "merge_recursive": true,
     "name": null,
     "options": "-mx=9 -m0=lzma2"
 }

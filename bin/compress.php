@@ -11,10 +11,10 @@ $options = array(
     'dir' => $argv[1] ?? $cwd,
     'exclude_extensions' => array('7z', 'bak', 'db', 'env', 'gz', 'zip', 'rar'),
     'exclude_recursives' => array('~$*'),
+    'exclude_extras' => null,
     'excludes' => array('.git', '.vs', 'dist', 'node_modules', 'var', 'vendor'),
     'extension' => null,
     'format' => '7z',
-    'merge_recursive' => true,
     'name' => null,
     'options' => '-mx=9 -m0=lzma2',
 );
@@ -38,7 +38,10 @@ $bin = resolveBinary($options['bin']);
 $dest = str_replace('{cwd}', $workingDir, rtrim(fixSlashes($options['dest']), '/'));
 $name = $options['name'] ?: basename($workingDir);
 $extension = '.' . ltrim($options['extension'] ?: $options['format'], '.');
-$excludes = getExcludes($options['excludes'], $name . '/');
+$excludes = array_merge(
+    getExcludes($options['excludes'], $name . '/'),
+    getExcludes($options['exclude_extras'], $name . '/'),
+);
 $excludesRecursive = array_merge(
     getExcludes($options['exclude_recursives'], $name . '/'),
     getExcludes($options['exclude_extensions'], $name . '/*.'),
@@ -133,11 +136,7 @@ function loadConfig(string $file, array &$options): void {
         halt('Configuration file error: %s (%s)', $file, json_last_error_msg());
     }
 
-    if ($options['merge_recursive'] ?? false) {
-        $options = array_merge_recursive($options, $customOptions ?? array());
-    } else {
-        $options = array_merge($options, $customOptions ?? array());
-    }
+    $options = array_merge($options, $customOptions ?? array());
 }
 
 /** No side effect */
