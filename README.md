@@ -4,22 +4,9 @@ Compress project folder
 
 ## Installation and Usage
 
-```
-composer require --dev eghojansu/project-compress:dev-master
-```
+`composer require --dev eghojansu/project-compress:dev-master`
 
-Use in your project:
-
-```
-vendor/bin/compress .
-```
-
-Or create `compress.json` and put `dir` option. So you can run:
-
-```
-vendor/bin/compress
-```
-
+Use in your project: `vendor/bin/compress`
 
 ## Options
 
@@ -29,23 +16,17 @@ Default options:
 
 ```json
 {
-    "name": null,
-    "dir": "{cwd}",
-    "dest": "{cwd}/var",
     "bin": null,
-    "options": "-mx=9 -m0=lzma2",
-    "format": "7z",
+    "dest": "{cwd}/dist",
+    "dir": "{cwd}",
+    "exclude_extensions": ["7z", "bak", "db", "env", "gz", "zip", "rar"],
+    "exclude_recursives": ["~$*"],
+    "excludes": [".git", ".vs", "dist", "node_modules", "var", "vendor"],
     "extension": null,
-    "excludes": [
-        ".git",
-        ".vs",
-        "~$*",
-        "build",
-        "node_modules",
-        "var",
-        "vendor"
-    ],
-    "exclude_extensions": "7z,bak,db,env,gz,zip,rar,sqlite,sqlite3,mdf"
+    "format": "7z",
+    "merge_recursive": true,
+    "name": null,
+    "options": "-mx=9 -m0=lzma2"
 }
 ```
 

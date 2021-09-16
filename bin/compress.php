@@ -5,70 +5,47 @@ if ('cli' !== PHP_SAPI) {
 }
 
 $cwd = getcwd();
-$configs = array('compress.json', 'compress.json.dist');
-$defaults = array(
-    'name' => null,
-    'dir' => $argv[1] ?? null,
-    'dest' => $cwd . '/dist',
+$options = array(
     'bin' => null,
-    'format' => '7z',
+    'dest' => $cwd . '/dist',
+    'dir' => $argv[1] ?? $cwd,
+    'exclude_extensions' => array('7z', 'bak', 'db', 'env', 'gz', 'zip', 'rar'),
+    'exclude_recursives' => array('~$*'),
+    'excludes' => array('.git', '.vs', 'dist', 'node_modules', 'var', 'vendor'),
     'extension' => null,
+    'format' => '7z',
+    'merge_recursive' => true,
+    'name' => null,
     'options' => '-mx=9 -m0=lzma2',
-    'excludes' => array(
-        '.git',
-        '.vs',
-        '~$*',
-        'dist',
-        'node_modules',
-        'var',
-        'vendor',
-    ),
-    'exclude_extensions' => '7z,bak,db,env,gz,zip,rar',
 );
-$options = $defaults;
 
-foreach ($configs as $config) {
-    if (is_file($file = $cwd . '/' . $config)) {
-        $customOptions = json_decode(file_get_contents($file), true);
-
-        if (json_last_error()) {
-            halt('Configuration file error: %s (%s)', $file, json_last_error_msg());
-        }
-
-        $options = array_merge($options, $customOptions ?? array());
-
-        break;
-    }
+if (is_readable($file = $cwd . '/compress.json')) {
+    loadConfig($file, $options);
+} elseif (is_readable($file = $cwd . '/compress.json.dist')) {
+    loadConfig($file, $options);
 }
 
 if (!$options['dir'] || '/' === $options['dir']) {
     halt('Please provide any directory to compress');
 }
 
-// fixing
-$workingDir = fixSlashes(realpath($options['dir']) ?: '');
-
-if (!$workingDir) {
+if (!realpath($options['dir'])) {
     halt('Invalid working dir: %s', $workingDir);
 }
 
-$directoriesFix = array('dest');
-
-foreach ($directoriesFix as $key) {
-    $options[$key] = str_replace('{cwd}', $workingDir, rtrim(fixSlashes($options[$key]), '/'));
-}
-
-$dest = $options['dest'];
+$workingDir = fixSlashes(realpath($options['dir']));
+$bin = resolveBinary($options['bin']);
+$dest = str_replace('{cwd}', $workingDir, rtrim(fixSlashes($options['dest']), '/'));
 $name = $options['name'] ?: basename($workingDir);
 $extension = '.' . ltrim($options['extension'] ?: $options['format'], '.');
-$excludes = array();
+$excludes = getExcludes($options['excludes'], $name . '/');
+$excludesRecursive = array_merge(
+    getExcludes($options['exclude_recursives'], $name . '/'),
+    getExcludes($options['exclude_extensions'], $name . '/*.'),
+);
 
-foreach ($options['excludes'] as $exclude) {
-    $excludes[] = sprintf('"-x!%s/%s"', $name, $exclude);
-}
-
-foreach (split($options['exclude_extensions']) as $ext) {
-    $excludes[] = sprintf('"-xr!%s/*.%s"', $name, $ext);
+if (!$bin) {
+    halt('7Zip binary not found');
 }
 
 runCall('Get excluded files from repository', $result, 'git ls-files -oi --exclude-standard', $workingDir);
@@ -76,17 +53,11 @@ runCall('Get excluded files from repository', $result, 'git ls-files -oi --exclu
 foreach (explode("\n", trim($result)) as $exclude) {
     $base = strstr($exclude, '/', true);
 
-    if (!$base || in_array($base, $options['excludes'])) {
+    if (!$base || preg_grep('~^' . preg_quote($name, '~') . '/' . preg_quote($base, '~') . '~', $excludes)) {
         continue;
     }
 
-    $excludes[] = sprintf('"-xr!%s/%s"', $name, $exclude);
-}
-
-$bin = resolveBinary($options['bin']);
-
-if (!$bin) {
-    halt('7Zip binary not found');
+    $excludes[] = $name . '/' . $exclude;
 }
 
 if (is_dir($dest)) {
@@ -96,10 +67,23 @@ if (is_dir($dest)) {
 }
 
 $target = resolveFilename($dest, $name, $extension);
-$cmd = sprintf('"%s" a -t%s %s "%s" "%s"', $bin, $options['format'], $options['options'], $target, $workingDir) . ' ' . implode(' ', $excludes);
+$excludeFile = tempnam(sys_get_temp_dir(), 'excr');
+$excludeRecursiveFile = tempnam(sys_get_temp_dir(), 'excr');
+
+file_put_contents($excludeFile, implode("\n", $excludes));
+file_put_contents($excludeRecursiveFile, implode("\n", $excludesRecursive));
+
+$cmd = sprintf('"%s" a -t%s %s "%s" "%s" "-x@%s" "-xr@%s"', $bin, $options['format'], $options['options'], $target, $workingDir, $excludeFile, $excludeRecursiveFile);
 
 runCall('Compressing', $result, $cmd);
-writeln('Output file: %s (%s)', $target, resolveFilesize(filesize($target)));
+
+if (file_exists($target)) {
+    writeln('Output file: %s (%s)', $target, resolveFilesize(filesize($target)));
+    writeln('Excluded file paths:');
+    writeln('  - %s', $excludeFile);
+    writeln('  - %s', $excludeRecursiveFile);
+}
+
 writeln();
 
 /* ==== Definitions ==== */
@@ -142,6 +126,21 @@ function writeln(string $format = null, ...$values): void {
 
     echo PHP_EOL;
 }
+function loadConfig(string $file, array &$options): void {
+    $customOptions = json_decode(file_get_contents($file), true);
+
+    if (json_last_error()) {
+        halt('Configuration file error: %s (%s)', $file, json_last_error_msg());
+    }
+
+    if ($options['merge_recursive'] ?? false) {
+        $options = array_merge_recursive($options, $customOptions ?? array());
+    } else {
+        $options = array_merge($options, $customOptions ?? array());
+    }
+}
+
+/** No side effect */
 function grabFileno(string $file, string $extension): int {
     $base = basename($file, $extension);
 
@@ -195,7 +194,12 @@ function fixSlashes(string $path): string {
     return strtr($path, '\\', '/');
 }
 function split($parts, $pattern = '/[,;|]/'): array {
-    return is_array($parts) ? $parts : preg_split($pattern, $parts, 0, PREG_SPLIT_NO_EMPTY);
+    return $parts ? (is_array($parts) ? $parts : preg_split($pattern, $parts, 0, PREG_SPLIT_NO_EMPTY)) : array();
+}
+function getExcludes($entry, string $prefix): array {
+    return array_map(function (string $line) use ($prefix) {
+        return $prefix . $line;
+    }, split($entry));
 }
 function call($command, string $cwd = null): array {
     $start = hrtime(true);
