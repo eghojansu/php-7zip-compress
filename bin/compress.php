@@ -8,7 +8,7 @@ $cwd = getcwd();
 $options = array(
     'bin' => null,
     'dest' => $cwd . '/dist',
-    'dir' => $argv[1] ?? $cwd,
+    'dir' => $cwd,
     'exclude_extensions' => array('7z', 'bak', 'db', 'env', 'gz', 'zip', 'rar'),
     'exclude_recursives' => array('~$*'),
     'exclude_extras' => null,
@@ -17,6 +17,7 @@ $options = array(
     'format' => '7z',
     'name' => null,
     'options' => '-mx=9 -m0=lzma2',
+    'overrides' => null,
 );
 
 if (is_readable($file = $cwd . '/compress.json')) {
@@ -25,15 +26,26 @@ if (is_readable($file = $cwd . '/compress.json')) {
     loadConfig($file, $options);
 }
 
+if ($matches = preg_grep('/^\-\-env\=[^\s]+$/i', $argv)) {
+    sscanf(reset($matches), '--env=%s', $env);
+
+    if ($overrides = $options['overrides'][$env] ?? null) {
+        unset($options['overrides']);
+
+        $options = array_merge($options, $overrides);
+    }
+}
+
 if (!$options['dir'] || '/' === $options['dir']) {
     halt('Please provide any directory to compress');
 }
+
+$workingDir = fixSlashes(realpath($options['dir']));
 
 if (!realpath($options['dir'])) {
     halt('Invalid working dir: %s', $workingDir);
 }
 
-$workingDir = fixSlashes(realpath($options['dir']));
 $bin = resolveBinary($options['bin']);
 $dest = str_replace('{cwd}', $workingDir, rtrim(fixSlashes($options['dest']), '/'));
 $name = $options['name'] ?: basename($workingDir);

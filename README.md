@@ -26,11 +26,27 @@ Default options:
     "extension": null,
     "format": "7z",
     "name": null,
-    "options": "-mx=9 -m0=lzma2"
+    "options": "-mx=9 -m0=lzma2",
+    "overrides": null
 }
 ```
 
 _Please refers to 7zip for `format` and `options` option._
+
+_Overrides consists of environment and overriden option as below._
+
+```json
+{
+    "overrides": {
+        "prod": {
+            "exclude_extras": "exclude/other/directory-or-files"
+        }
+    }
+}
+```
+
+Then run command with `vendor/bin/compress --env=prod`.
+The configuration in `overrides.prod` will be merged with the main configuration.
 
 
 ## Supported compressor
