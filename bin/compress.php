@@ -152,12 +152,13 @@ function loadConfig(string $file, array &$options): void {
 }
 
 /** No side effect */
-function grabFileno(string $file, string $extension): int {
+function grabFileno(string $file, string $extension, string $baseFilename): int {
     $base = basename($file, $extension);
 
     if (
-        false === ($hypenPos = strrpos($base, '-'))
-        || !is_numeric($no = substr($base, $hypenPos + 1))
+        false === ($pos = strrpos($base, '-'))
+        || !is_numeric($no = substr($base, $pos + 1))
+        || $baseFilename !== substr($base, 0, $pos)
     ) {
         return 1;
     }
@@ -165,8 +166,8 @@ function grabFileno(string $file, string $extension): int {
     return intval($no);
 }
 function resolveFilename(string $dest, string $name, string $ext): string {
-    $existing = array_map(function ($file) use ($ext) {
-        return grabFileno($file, $ext);
+    $existing = array_map(function ($file) use ($name, $ext) {
+        return grabFileno($file, $ext, $name);
     }, glob($dest . '/*' . $ext));
 
     sort($existing);
